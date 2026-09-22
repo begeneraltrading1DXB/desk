@@ -724,6 +724,22 @@
   }
 
   .status-line.show { opacity: 1; }
+
+  /* Rate-jump notice. Deliberately a line of text, not a dialog: it should be
+     noticed on the way past, never stand between you and sending. */
+  .rate-warn {
+    margin-top: 10px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--bad);
+    display: none;
+    align-items: baseline;
+    gap: 7px;
+  }
+  .rate-warn.show { display: flex; }
+  .rate-warn .arrow { font-size: 15px; line-height: 1; }
+  .rate-warn .from { color: var(--text-dim); }
   .status-line.ok { color: var(--good); }
   .status-line.err { color: var(--bad); }
   .status-line.pending { color: var(--text-dim); }
@@ -874,6 +890,131 @@
   #approvalModal .ap-code { width: 62px; font-size: 13px; }
   #approvalModal .ap-nums { margin-left: auto; }
   #approvalModal .ap-delta { min-width: 66px; }
+  /* ---- top-bar menu ---- */
+  .menu-wrap { position: relative; display: flex; align-items: center; }
+
+  .menu-panel {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    min-width: 234px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.38);
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+    transform-origin: top right;
+    pointer-events: none;
+    transition: opacity .18s ease, transform .18s ease;
+    z-index: 60;
+  }
+  .menu-panel.open { opacity: 1; transform: none; pointer-events: auto; }
+
+  .menu-panel .menu-item {
+    width: 100%;
+    height: auto;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 11px;
+    padding: 11px 12px;
+    text-align: left;
+  }
+  .menu-panel .menu-item:hover,
+  .menu-panel .menu-item:focus-visible {
+    background: var(--panel-2);
+    border-color: var(--line);
+  }
+  .menu-panel .menu-item svg { width: 17px; height: 17px; flex: none; }
+  .menu-panel .menu-item .dot-badge { top: 8px; right: 8px; }
+  .menu-label {
+    font-size: 13.5px;
+    color: var(--text);
+    letter-spacing: .01em;
+    white-space: nowrap;
+  }
+  .menu-sep { height: 1px; background: var(--line); margin: 5px 4px; }
+
+  /* ---- live buy / sell sheets ---- */
+  .trade-summary {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 11px 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 4px;
+  }
+  .trade-summary .ts-line {
+    display: flex; align-items: baseline; justify-content: space-between;
+  }
+  .trade-summary .ts-label {
+    font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .trade-summary .ts-value {
+    font-family: var(--mono); font-size: 14px; color: var(--accent); font-weight: 700;
+  }
+  .trade-summary .ts-value.sub { font-size: 12px; color: var(--text); font-weight: 400; }
+
+  .trade-row {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .trade-row .t-top {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .trade-row .t-name {
+    font-weight: 700; font-size: 13.5px; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .trade-row .t-cur {
+    margin-left: auto; flex: none;
+    font-size: 10.5px; font-weight: 700; letter-spacing: .08em;
+    color: var(--text-dim);
+    border: 1px solid var(--line); border-radius: 999px;
+    padding: 2px 8px;
+  }
+  .trade-row .t-bot {
+    display: flex; align-items: baseline; gap: 8px;
+    font-family: var(--mono);
+  }
+  .trade-row .t-amt   { font-size: 12.5px; color: var(--text); }
+  .trade-row .t-rate  { font-size: 11px; color: var(--text-dim); }
+  .trade-row .t-total { margin-left: auto; font-size: 12px; color: var(--accent); white-space: nowrap; }
+  .trade-row.is-convert { border-color: var(--accent); }
+  .trade-row.is-convert .t-total { color: var(--text-dim); }
+  .t-flag {
+    font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+    padding: 2px 6px; border-radius: 999px;
+    border: 1px solid var(--accent); color: var(--accent);
+    flex: none;
+  }
+  .setup-note {
+    background: var(--panel-2);
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    padding: 13px 14px;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--text);
+  }
+  .setup-note b { color: var(--accent); }
+
 </style>
 </head>
 <body>
@@ -886,14 +1027,33 @@
     <div class="company-name" id="wordmarkTapZone">Gohari</div>
     <div class="right">
       <span class="clock" id="clock">--:--</span>
-      <button class="icon-btn" id="accountsToggle" aria-label="Show account balances">
-        <span class="dot-badge" id="accountsBadge"></span>
-        <svg viewBox="0 0 24 24"><path d="M4 19h16M6 19V9M11 19V5M16 19v12"/></svg>
-      </button>
-      <button class="icon-btn" id="approvalToggle" aria-label="Rate approval">
-        <span class="dot-badge" id="approvalBadge"></span>
-        <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
-      </button>
+      <div class="menu-wrap">
+        <button class="icon-btn" id="menuToggle" aria-label="Open menu" aria-haspopup="true" aria-expanded="false">
+          <span class="dot-badge" id="menuBadge"></span>
+          <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="menu-panel" id="menuPanel" role="menu">
+          <button class="icon-btn menu-item" id="accountsToggle" role="menuitem" aria-label="Show account balances">
+            <span class="dot-badge" id="accountsBadge"></span>
+            <svg viewBox="0 0 24 24"><path d="M4 19h16M6 19V9M11 19V5M16 19v12"/></svg>
+            <span class="menu-label">Account balances</span>
+          </button>
+          <button class="icon-btn menu-item" id="approvalToggle" role="menuitem" aria-label="Rate approval">
+            <span class="dot-badge" id="approvalBadge"></span>
+            <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+            <span class="menu-label">Rate approval</span>
+          </button>
+          <div class="menu-sep"></div>
+          <button class="icon-btn menu-item" id="buySheetToggle" role="menuitem">
+            <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            <span class="menu-label">Buy sheet</span>
+          </button>
+          <button class="icon-btn menu-item" id="sellSheetToggle" role="menuitem">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+            <span class="menu-label">Sell sheet</span>
+          </button>
+        </div>
+      </div>
       <button class="theme-toggle" id="themeToggle" aria-label="Toggle light or dark mode">
         <svg id="themeIcon" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.39 5.39 0 0 1-7.14-7.14A8.96 8.96 0 0 0 12 3z"/></svg>
       </button>
@@ -909,6 +1069,18 @@
     <button class="sidebar-refresh" id="sidebarRefresh">Refresh</button>
     <div class="sidebar-body" id="accountsList">
       <div class="empty-note">Loading accounts…</div>
+    </div>
+  </aside>
+
+  <div class="sidebar-overlay" id="tradeOverlay"></div>
+  <aside class="accounts-sidebar" id="tradeSidebar">
+    <div class="sidebar-head">
+      <span class="title" id="tradeTitle">Buy sheet</span>
+      <button class="sidebar-close" id="tradeClose" aria-label="Close">✕</button>
+    </div>
+    <button class="sidebar-refresh" id="tradeRefresh">Refresh</button>
+    <div class="sidebar-body" id="tradeBody">
+      <div class="empty-note">Loading…</div>
     </div>
   </aside>
 
@@ -1087,38 +1259,37 @@
       <div class="market-tile"><div class="sym">BTC</div><div class="val">—</div><div class="chg">—</div></div>
     </div>
 
-    <div class="section-row">
-      <div>
-        <div class="section-label">Set rate</div>
-        <div class="card">
-          <div class="rate-input-row">
-            <input type="text" id="rateInput" inputmode="numeric" placeholder="46500" autocomplete="off" autofocus>
-            <button class="btn-send" id="sendRateBtn">Send</button>
-          </div>
-          <div class="status-line" id="rateStatus"></div>
+    <div>
+      <div class="section-label">Balance</div>
+      <div class="card">
+        <button class="btn-balance" id="checkBalanceBtn">
+          <span class="pulse-dot" id="balanceDot"></span>
+          <span id="balanceBtnText">Check balance</span>
+        </button>
+        <div class="balance-display" id="balanceDisplay" style="display:none;">
+          <div class="figure" id="balanceFigure">—</div>
+          <div class="label" id="balanceLabel">—</div>
         </div>
-      </div>
-
-      <div>
-        <div class="section-label">Balance</div>
-        <div class="card">
-          <button class="btn-balance" id="checkBalanceBtn">
-            <span class="pulse-dot" id="balanceDot"></span>
-            <span id="balanceBtnText">Check balance</span>
-          </button>
-          <div class="balance-display" id="balanceDisplay" style="display:none;">
-            <div class="figure" id="balanceFigure">—</div>
-            <div class="label" id="balanceLabel">—</div>
-          </div>
-          <div class="status-line" id="balanceStatus"></div>
-        </div>
+        <div class="status-line" id="balanceStatus"></div>
       </div>
     </div>
 
     <div>
-      <div class="section-label" style="display:flex; justify-content:space-between; align-items:center;">
+      <div class="section-label">Set rate</div>
+      <div class="card">
+        <div class="rate-input-row">
+          <input type="text" id="rateInput" inputmode="numeric" placeholder="—" autocomplete="off" autofocus>
+          <button class="btn-send" id="sendRateBtn">Send</button>
+        </div>
+        <div class="rate-warn" id="rateWarn"></div>
+        <div class="status-line" id="rateStatus"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">
         <span>Live price list</span>
-        <button class="btn-copy" id="copyListBtn" style="display:none;">Copy</button>
+        <button class="btn-copy" id="copyListBtn" style="display:none; margin-left:auto;">Copy</button>
       </div>
       <div class="card">
         <div id="priceListBox">
@@ -1136,6 +1307,31 @@
   const ENDPOINT = "https://script.google.com/macros/s/AKfycbxqxHdQIv9p_UWRenGkid_aK2XvK7MsEX8Zll2ztbDm_TgJic541XmlpNgVCRHEsN46Kw/exec";
   const ACCOUNTS_ENDPOINT = "https://script.google.com/macros/s/AKfycbyHnVXN6xHC7w6r9f57BedFc6P0QYcnba87Lmn7yt_kYSsC6OJpYDTQM_85_m1xsexOAg/exec";
 
+  /* Anything that returns customer names sits behind a key: the buy and sell
+     sheets, and the account balances list. The key is NEVER in this file — it
+     is typed once per phone, or arrives as ?k=… in a link so a phone can be
+     set up in a single tap. Every other action stays open, so the 3pm Mac run
+     and the existing phones carry on untouched. */
+  const KEY_STORE = 'desk-sheets-key';
+  const getKey   = () => { try { return localStorage.getItem(KEY_STORE) || ''; } catch (e) { return ''; } };
+  const setKey   = v  => { try { localStorage.setItem(KEY_STORE, v); } catch (e) {} };
+  const clearKey = () => { try { localStorage.removeItem(KEY_STORE); } catch (e) {} };
+  const withKey  = url => url + (url.indexOf('?') === -1 ? '?' : '&') + 'key=' + encodeURIComponent(getKey());
+
+  /* A link like .../desk/?k=XXXX unlocks the phone in one tap. The parameter is
+     deliberately NOT stripped: both phones are used by saving the page to the
+     iOS home screen, and iOS stores whatever URL is showing at that moment.
+     Stripping it would leave the saved icon without the key, so it would rely
+     on local storage alone — which Safari can evict after about a week idle.
+     Left in, a home-screen icon made from the keyed link re-applies the key on
+     every launch and can never go stale. */
+  (function captureKeyFromUrl() {
+    try {
+      const k = new URL(window.location.href).searchParams.get('k');
+      if (k) setKey(k);
+    } catch (e) {}
+  })();
+
   // Theme — defaults to dark, remembers choice
   const sunIcon = '<path d="M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z"/><path d="M12 1v3M12 20v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M1 12h3M20 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>';
   const moonIcon = '<path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.39 5.39 0 0 1-7.14-7.14A8.96 8.96 0 0 0 12 3z"/>';
@@ -1152,8 +1348,23 @@
     }
   }
 
-  let currentTheme = localStorage.getItem('desk-theme') || 'dark';
+  // No saved choice yet -> follow the device's light/dark setting.
+  // Once the user taps the toggle, their choice wins and we stop following.
+  const savedTheme = localStorage.getItem('desk-theme');
+  const lightQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
+
+  let currentTheme = savedTheme || ((lightQuery && lightQuery.matches) ? 'light' : 'dark');
   applyTheme(currentTheme);
+
+  if (!savedTheme && lightQuery) {
+    const followDevice = (e) => {
+      if (localStorage.getItem('desk-theme')) return; // user has since chosen for themselves
+      currentTheme = e.matches ? 'light' : 'dark';
+      applyTheme(currentTheme);
+    };
+    if (lightQuery.addEventListener) lightQuery.addEventListener('change', followDevice);
+    else lightQuery.addListener(followDevice); // older WebKit / iOS
+  }
 
   themeToggle.addEventListener('click', () => {
     currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
@@ -1255,6 +1466,7 @@
       const res = await fetch(`${ENDPOINT}?action=getList`);
       const data = await res.json();
       if (data.ok && data.lines) {
+        if (data.rate) { currentRate = Number(data.rate); checkRateJump(); }
         lastListText = data.lines.join('\n');
         box.innerHTML = '<div class="price-list">' + data.lines.map(line =>
           line === '' ? '<div class="blank-line"></div>' : escapeHtml(line)
@@ -1299,6 +1511,44 @@
     return div.innerHTML;
   }
 
+  /* ── Rate-jump notice ───────────────────────────────────────────────────
+     On 6 Sep a rate went in as 52,450 instead of 62,450 and stood for 86
+     seconds. Across 33 real rate changes over three days the largest was
+     1.29%; that typo was 14.78%. So 3% sits at more than double any genuine
+     move and still catches a fat finger five times over.
+
+     It only ever warns. A real market move must always be able to go through
+     on the first press, so there is no dialog and nothing to confirm.
+     ─────────────────────────────────────────────────────────────────────── */
+  const rateWarn = document.getElementById('rateWarn');
+  const JUMP_PCT = 3;
+  let currentRate = null;
+
+  function checkRateJump() {
+    const raw = rateInput.value.trim();
+    const v = parseFloat(raw);
+    if (!currentRate || !v || isNaN(v)) { rateWarn.classList.remove('show'); return; }
+
+    // Wait for a full-length number. Typing 52450 passes through 5, 52, 524
+    // and 5245 - every one of them 99% below 61,000 - so checking on each
+    // keystroke would flash red while you type any rate at all. Only once the
+    // number is as long as the current rate is it worth comparing.
+    const digits = raw.replace(/[^0-9]/g, '').length;
+    if (digits < String(Math.round(currentRate)).length) {
+      rateWarn.classList.remove('show'); return;
+    }
+
+    const diff = (v - currentRate) / currentRate * 100;
+    if (Math.abs(diff) < JUMP_PCT) { rateWarn.classList.remove('show'); return; }
+    rateWarn.innerHTML =
+      '<span class="arrow">' + (diff < 0 ? '\u2193' : '\u2191') + '</span>' +
+      '<span>' + Math.abs(diff).toFixed(1) + '% ' + (diff < 0 ? 'below' : 'above') +
+      ' <span class="from">' + currentRate.toLocaleString('en-US') + '</span></span>';
+    rateWarn.classList.add('show');
+  }
+
+  rateInput.addEventListener('input', checkRateJump);
+
   async function sendRate() {
     const value = rateInput.value.trim();
     if (!value || isNaN(value)) {
@@ -1313,7 +1563,9 @@
       const data = await res.json();
       if (data.ok) {
         setStatus(rateStatus, '✓ ' + data.message, 'ok');
+        currentRate = parseFloat(value);
         rateInput.value = '';
+        rateWarn.classList.remove('show');
         fetchAndShowPriceList();
       } else {
         setStatus(rateStatus, data.message || 'Something went wrong', 'err');
@@ -1364,6 +1616,7 @@
   }
 
   checkBalanceBtn.addEventListener('click', checkBalance);
+  checkBalance();   // on open, so the figure is already there — the button stays for re-checking
 
   // ---------- Accounts sidebar ("barrel" balances) ----------
   // Pulls from a separate, standalone Apps Script bound only to the
@@ -1422,8 +1675,15 @@
   async function fetchAccounts() {
     accountsList.innerHTML = '<div class="empty-note">Loading accounts…</div>';
     try {
-      const res = await fetch(ACCOUNTS_ENDPOINT);
+      // This list carries customer names, so it needs the key like the sheets do.
+      const res = await fetch(withKey(ACCOUNTS_ENDPOINT));
       const data = await res.json();
+      if (data && data.unauthorised) {
+        accountsList.innerHTML =
+            '<div class="setup-note">This list shows customer names, so it is locked.'
+          + '<br><br>Open the app from the link you were sent, or ask for it again.</div>';
+        return;
+      }
       if (data.ok) {
         renderAccounts(data.accounts);
       } else {
@@ -1972,6 +2232,256 @@
   approvalOverlay.addEventListener('click', closeApproval);
 
   apLoad();   // on load, so the badge lights up without opening anything
+
+  /* Pull the current list as soon as the app opens. Two reasons, and the first
+     one matters:
+
+     1. It is the only thing that sets currentRate. Without it currentRate stays
+        null, checkRateJump() returns at its first line, and the rate-jump
+        warning cannot fire AT ALL on the first rate of a session — precisely
+        the moment it exists to guard. Before this, the 52,450-for-62,450 case
+        would have gone through unwarned on a freshly opened app.
+     2. The list is worth having on screen to copy without setting a rate first.
+
+     One call on open, not a poller. */
+  fetchAndShowPriceList();
+
+  /* ---------- top-bar menu ---------- */
+  (function () {
+    const menuToggle = document.getElementById('menuToggle');
+    const menuPanel  = document.getElementById('menuPanel');
+    const menuBadge  = document.getElementById('menuBadge');
+
+    function openMenu()  { menuPanel.classList.add('open');    menuToggle.setAttribute('aria-expanded', 'true');  }
+    function closeMenu() { menuPanel.classList.remove('open'); menuToggle.setAttribute('aria-expanded', 'false'); }
+
+    menuToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (menuPanel.classList.contains('open')) closeMenu(); else openMenu();
+    });
+
+    // Picking anything closes the menu. Deferred so the item's own handler runs first.
+    menuPanel.addEventListener('click', () => setTimeout(closeMenu, 0));
+
+    document.addEventListener('click', (e) => {
+      if (!menuPanel.contains(e.target) && !menuToggle.contains(e.target)) closeMenu();
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu(); });
+
+    // The alert dots now live inside a closed menu, so mirror them onto the menu button.
+    function syncBadge() {
+      const a = document.getElementById('accountsBadge');
+      const p = document.getElementById('approvalBadge');
+      const on = (a && a.classList.contains('show')) || (p && p.classList.contains('show'));
+      menuBadge.classList.toggle('show', !!on);
+    }
+    const mo = new MutationObserver(syncBadge);
+    ['accountsBadge', 'approvalBadge'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) mo.observe(el, { attributes: true, attributeFilter: ['class'] });
+    });
+    syncBadge();
+  })();
+
+  /* ---------- live buy / sell sheets ---------- */
+  /* Reads the Kharid and Froosh sheets directly rather than TRADELOG: the log
+     carries no customer names by design. Both sheets are wiped every morning,
+     so whatever comes back IS today — there is no date window to choose. */
+  (function () {
+    const overlay = document.getElementById('tradeOverlay');
+    const panel   = document.getElementById('tradeSidebar');
+    const titleEl = document.getElementById('tradeTitle');
+    const bodyEl  = document.getElementById('tradeBody');
+    const refresh = document.getElementById('tradeRefresh');
+    let currentSide = 'BUY';
+
+    // Rates like 1.807 must keep their decimals; toman figures must not.
+    const fmt = n => {
+      if (typeof n !== 'number' || !isFinite(n)) return (n == null ? '' : n);
+      return (Math.abs(n) < 1000 && !Number.isInteger(n))
+        ? n.toLocaleString('en-US', { maximumFractionDigits: 3 })
+        : Math.round(n).toLocaleString('en-US');
+    };
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g,
+      c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    function askForKey(side, problem) {
+      bodyEl.innerHTML =
+          '<div class="setup-note">'
+        +   (problem ? '<b>' + esc(problem) + '</b><br><br>' : '')
+        +   'These sheets show customer names, so they are locked.<br><br>'
+        +   '<input id="sheetKeyInput" type="password" autocomplete="off" placeholder="Enter key" '
+        +     'style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);'
+        +     'background:var(--panel);color:var(--text);font-size:14px;margin-bottom:10px;">'
+        +   '<button id="sheetKeyBtn" style="width:100%;padding:10px;border-radius:10px;'
+        +     'border:1px solid var(--accent);background:var(--accent);color:#000;'
+        +     'font-weight:700;font-size:14px;">Unlock</button>'
+        + '</div>';
+      const input = document.getElementById('sheetKeyInput');
+      const btn   = document.getElementById('sheetKeyBtn');
+      const go = () => {
+        const v = input.value.trim();
+        if (!v) return;
+        setKey(v);
+        load(side);
+      };
+      btn.addEventListener('click', go);
+      input.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+      input.focus();
+    }
+
+    async function load(side) {
+      currentSide = side;
+      titleEl.textContent = side === 'BUY' ? 'Buy sheet — today' : 'Sell sheet — today';
+
+      const key = getKey();
+      if (!key) { askForKey(side); return; }
+
+      bodyEl.innerHTML = '<div class="empty-note">Loading…</div>';
+
+      const url = (side === 'BUY' ? ACCOUNTS_ENDPOINT : SELL_ENTRY_ENDPOINT)
+                + '?action=getRows&key=' + encodeURIComponent(key);
+
+      try {
+        const res = await fetch(url);
+        const j = await res.json();
+
+        if (j && j.unauthorised) {
+          clearKey();
+          askForKey(side, 'That key was not accepted.');
+          return;
+        }
+
+        if (!j || !j.ok || !Array.isArray(j.rows)) {
+          bodyEl.innerHTML = '<div class="setup-note">The <b>'
+            + (side === 'BUY' ? 'Kharid' : 'Froosh')
+            + '</b> script still needs redeploying with the new <b>getRows</b> action.'
+            + '<br><br>Apps Script &rarr; paste the updated file &rarr; Deploy &rarr; '
+            + '<b>Manage deployments</b> &rarr; New version.'
+            + (j && j.message ? '<br><br><span style="opacity:.65">' + esc(j.message) + '</span>' : '')
+            + '</div>';
+          return;
+        }
+        if (side === 'BUY') renderBuy(j); else renderSell(j);
+      } catch (err) {
+        bodyEl.innerHTML = '<div class="empty-note">Could not reach the sheet — check connection</div>';
+      }
+    }
+
+    function renderBuy(j) {
+      if (!j.rows.length) {
+        bodyEl.innerHTML = '<div class="empty-note">Nothing bought yet today</div>';
+        return;
+      }
+      const avg = j.totalDhs ? (j.totalTmn / j.totalDhs) : 0;
+      let html = '<div class="trade-summary">'
+        + '<div class="ts-line"><span class="ts-label">Dirhams bought</span>'
+        + '<span class="ts-value">' + fmt(j.totalDhs) + ' DHS</span></div>'
+        + '<div class="ts-line"><span class="ts-label">Toman paid</span>'
+        + '<span class="ts-value sub">' + fmt(j.totalTmn) + '</span></div>'
+        + '<div class="ts-line"><span class="ts-label">' + j.count + ' buys</span>'
+        + '<span class="ts-value sub">avg ' + fmt(avg) + '</span></div>'
+        + '</div>';
+
+      for (const r of j.rows) {
+        html += '<div class="trade-row">'
+          + '<div class="t-top">'
+          +   '<span class="t-name">' + esc(r.name) + '</span>'
+          +   '<span class="t-cur">' + esc(r.currency || 'DHS') + '</span>'
+          + '</div>'
+          + '<div class="t-bot">'
+          +   '<span class="t-amt">' + fmt(r.tmn) + '</span>'
+          +   '<span class="t-rate">@ ' + fmt(r.rate) + '</span>'
+          +   '<span class="t-total">' + fmt(r.dhs) + ' DHS</span>'
+          + '</div>'
+          + '</div>';
+      }
+      bodyEl.innerHTML = html;
+    }
+
+    function renderSell(j) {
+      if (!j.rows.length) {
+        bodyEl.innerHTML = '<div class="empty-note">Nothing sold yet today</div>';
+        return;
+      }
+      let html = '<div class="trade-summary">'
+        + '<div class="ts-line"><span class="ts-label">Toman taken</span>'
+        + '<span class="ts-value">' + fmt(j.totalTmn) + '</span></div>'
+        + '<div class="ts-line"><span class="ts-label">' + j.count + ' sales</span>'
+        + '<span class="ts-value sub">'
+        + (j.converts
+             ? j.converts + ' conversion' + (j.converts > 1 ? 's' : '') + ' left out of the total'
+             : 'no conversions today')
+        + '</span></div>'
+        + '</div>';
+
+      for (const r of j.rows) {
+        html += '<div class="trade-row' + (r.convert ? ' is-convert' : '') + '">'
+          + '<div class="t-top">'
+          +   '<span class="t-name">' + esc(r.name) + '</span>'
+          +   (r.convert ? '<span class="t-flag">convert</span>' : '')
+          +   '<span class="t-cur">' + esc(r.currency) + '</span>'
+          + '</div>'
+          + '<div class="t-bot">'
+          +   '<span class="t-amt">' + fmt(r.amount) + '</span>'
+          +   '<span class="t-rate">@ ' + fmt(r.rate) + '</span>'
+          +   '<span class="t-total">' + fmt(r.tmn) + (r.convert ? '' : ' TMN') + '</span>'
+          + '</div>'
+          + '</div>';
+      }
+      bodyEl.innerHTML = html;
+    }
+
+    function openTrade(side) {
+      panel.classList.add('open');
+      overlay.classList.add('open');
+      load(side);
+    }
+    function closeTrade() {
+      panel.classList.remove('open');
+      overlay.classList.remove('open');
+    }
+
+    document.getElementById('buySheetToggle').addEventListener('click', () => openTrade('BUY'));
+    document.getElementById('sellSheetToggle').addEventListener('click', () => openTrade('SELL'));
+    document.getElementById('tradeClose').addEventListener('click', closeTrade);
+    overlay.addEventListener('click', closeTrade);
+    refresh.addEventListener('click', () => {
+      load(currentSide);
+      if (currentSide === 'BUY' && window.refreshBuyContext) window.refreshBuyContext();
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeTrade(); });
+  })();
+
+  /* ---------- today's buying, under Set rate ----------
+     The rate box used to carry a hardcoded "46500" placeholder. That number
+     was months stale — rates run around 62,000 now — so it anchored the eye
+     on the wrong magnitude in a box where a mistyped digit has cost real
+     money before (6,200 for 62,200). It now shows what the day has actually
+     been bought at.
+
+     Deliberately NOT polled. getTMNRate opens the Kharid spreadsheet on every
+     call, and an interval against Apps Script is what made the Rates sheet
+     unusable in September. Loads once, then only when asked. */
+  (function () {
+    const input = document.getElementById('rateInput');
+    if (!input) return;
+
+    async function loadBuyAverage() {
+      try {
+        const res = await fetch(ACCOUNTS_ENDPOINT + '?action=getTMNRate');
+        const j = await res.json();
+        input.placeholder = (j && j.ok && isFinite(j.rate))
+          ? Math.round(j.rate).toLocaleString('en-US')
+          : '—';
+      } catch (err) {
+        input.placeholder = '—';
+      }
+    }
+
+    window.refreshBuyContext = loadBuyAverage;
+    loadBuyAverage();
+  })();
 </script>
 
 </body>
