@@ -6,10 +6,17 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <!-- iOS names a home-screen icon from this tag, falling back to <title> and
-     then the URL. Without it the icon read "Desk", after the /desk/ path. -->
-<meta name="apple-mobile-web-app-title" content="Gohari">
-<meta name="application-name" content="Gohari">
-<title>Gohari</title>
+     then the URL. Without it the icon read "Desk", after the /desk/ path.
+     Deliberately NOT the company name: the icon sits in plain view on a phone
+     and the page is on a public repo, so it should not identify the business. -->
+<meta name="apple-mobile-web-app-title" content="Gesk">
+<meta name="application-name" content="Gesk">
+<title>Gesk</title>
+<!-- A real file, not the base64 logo embedded further down: iOS does not
+     reliably accept a data: URI for apple-touch-icon. -->
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icon.png">
+<link rel="icon" type="image/png" href="icon.png">
 <style>
   :root {
     --bg: #0b0d10;
