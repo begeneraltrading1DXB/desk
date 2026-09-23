@@ -2597,6 +2597,18 @@
 
     function show(j) {
       var secs = ago(j.beat);
+      /* Locked is its own state, and it must not read as healthy. The watcher
+         keeps heartbeating quite happily from behind a lock screen, so without
+         this the panel would say "Awake" about a PC where nothing can run. */
+      if (j.note === 'locked' && secs !== null && secs < 180) {
+        stateEl.textContent = 'LOCKED - nothing can run';
+        stateEl.className = 'pc-state bad';
+        badge.style.display = 'block';
+        detail.textContent = 'Someone has to unlock the PC in the office. ' +
+          'The 3pm rates and balance reports will not run until they do.';
+        if (j.pending) msg.textContent = 'Waiting for the PC to pick up: ' + j.pending;
+        return;
+      }
       if (secs === null) {
         stateEl.textContent = 'Never heard from it';
         stateEl.className = 'pc-state bad';
@@ -2612,10 +2624,10 @@
         stateEl.className = 'pc-state bad';
         badge.style.display = 'block';
       }
-      detail.textContent = j.note
-        ? (j.note === 'idle' ? 'Nothing open. Waiting for work.'
-                             : 'An INTAC session is open right now.')
-        : '';
+      detail.textContent = j.note === 'idle' ? 'Nothing open. Waiting for work.'
+                         : j.note === 'INTAC session open' ? 'An INTAC session is open right now.'
+                         : j.note === 'locked' ? 'It reports itself locked.'
+                         : '';
       if (j.pending) msg.textContent = 'Waiting for the PC to pick up: ' + j.pending;
     }
 
