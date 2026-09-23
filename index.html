@@ -463,6 +463,22 @@
     height: 1px;
   }
 
+  .pc-state {
+    font-size: 16px;
+    font-weight: 700;
+    padding: 12px 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel-2);
+    margin-bottom: 10px;
+  }
+
+  .pc-state.ok   { color: var(--ok, #2e7d32); }
+  .pc-state.bad  { color: var(--danger, #c0392b); }
+
+  .pc-danger { margin-top: 8px; border-color: var(--danger, #c0392b) !important; }
+  #pcMsg { margin-top: 10px; min-height: 18px; }
+
   .bal-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 
   .bal-chip {
@@ -1105,6 +1121,11 @@
             <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h11"/></svg>
             <span class="menu-label">Outstanding balance</span>
           </button>
+          <button class="icon-btn menu-item" id="pcToggle" role="menuitem">
+            <span class="dot-badge" id="pcBadge"></span>
+            <svg viewBox="0 0 24 24"><path d="M4 5h16v10H4zM9 19h6M12 15v4"/></svg>
+            <span class="menu-label">Office PC</span>
+          </button>
         </div>
       </div>
       <button class="theme-toggle" id="themeToggle" aria-label="Toggle light or dark mode">
@@ -1158,6 +1179,22 @@
       </div>
       <button class="sidebar-refresh" id="balRequest">Send to Telegram</button>
       <div class="empty-note" id="balStatus" style="text-align:left"></div>
+    </div>
+  </aside>
+
+  <div class="sidebar-overlay" id="pcOverlay"></div>
+  <aside class="accounts-sidebar" id="pcSidebar">
+    <div class="sidebar-head">
+      <span class="title">Office PC</span>
+      <button class="sidebar-close" id="pcClose" aria-label="Close">&#10005;</button>
+    </div>
+    <div class="sidebar-body">
+      <div class="pc-state" id="pcState">Checking&hellip;</div>
+      <div class="empty-note" id="pcDetail" style="text-align:left"></div>
+
+      <button class="sidebar-refresh" id="pcCloseIntac">Close INTAC now</button>
+      <button class="sidebar-refresh pc-danger" id="pcLock">Lock the PC</button>
+      <div class="empty-note" id="pcMsg" style="text-align:left"></div>
     </div>
   </aside>
 
@@ -2528,6 +2565,139 @@
       if (currentSide === 'BUY' && window.refreshBuyContext) window.refreshBuyContext();
     });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeTrade(); });
+  })();
+
+  /* ---------- office PC: is it alive, and two emergency controls ----------
+     Written for the case where nobody is in the building.
+
+     The most valuable thing here is not control, it is KNOWING. Nothing about
+     that PC can be fixed remotely - if it reboots it stops at the login screen
+     and everything waits for a human - so the point is to find out on the day
+     rather than when you get home.
+
+     Lock is one-way on purpose. There is no remote unlock, and a locked
+     desktop means no 3pm rates and no balance reports until someone is
+     physically at the machine. So it asks twice. */
+  (function () {
+    var panel   = document.getElementById('pcSidebar');
+    var overlay = document.getElementById('pcOverlay');
+    var stateEl = document.getElementById('pcState');
+    var detail  = document.getElementById('pcDetail');
+    var msg     = document.getElementById('pcMsg');
+    var btnIntac= document.getElementById('pcCloseIntac');
+    var btnLock = document.getElementById('pcLock');
+    var badge   = document.getElementById('pcBadge');
+    var timer = null;
+    var lockArmed = false;
+
+    function ago(iso) {
+      if (!iso) return null;
+      return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+    }
+
+    function show(j) {
+      var secs = ago(j.beat);
+      if (secs === null) {
+        stateEl.textContent = 'Never heard from it';
+        stateEl.className = 'pc-state bad';
+        badge.style.display = 'block';
+      } else if (secs < 180) {
+        stateEl.textContent = 'Awake - last seen ' + secs + 's ago';
+        stateEl.className = 'pc-state ok';
+        badge.style.display = 'none';
+      } else {
+        var mins = Math.round(secs / 60);
+        stateEl.textContent = 'NOT RESPONDING - last seen ' +
+          (mins < 120 ? mins + ' min' : Math.round(mins / 60) + ' h') + ' ago';
+        stateEl.className = 'pc-state bad';
+        badge.style.display = 'block';
+      }
+      detail.textContent = j.note
+        ? (j.note === 'idle' ? 'Nothing open. Waiting for work.'
+                             : 'An INTAC session is open right now.')
+        : '';
+      if (j.pending) msg.textContent = 'Waiting for the PC to pick up: ' + j.pending;
+    }
+
+    function poll() {
+      return fetch(withKey(ENDPOINT + '?action=pcStatus'))
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j.unauthorised) {
+            stateEl.textContent = 'This phone is not linked yet';
+            stateEl.className = 'pc-state bad';
+            return;
+          }
+          show(j);
+        })
+        .catch(function () {
+          stateEl.textContent = 'No connection from this phone';
+          stateEl.className = 'pc-state bad';
+        });
+    }
+
+    function send(cmd, label) {
+      msg.style.color = '';
+      msg.textContent = 'Sending' + String.fromCharCode(8230);
+      return fetch(withKey(ENDPOINT + '?action=pcCommand&cmd=' + encodeURIComponent(cmd)))
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          msg.style.color = j.ok ? '' : 'var(--danger, #c0392b)';
+          msg.textContent = j.message || (j.ok ? label + ' sent' : 'Could not send it');
+          poll();
+        })
+        .catch(function () {
+          msg.style.color = 'var(--danger, #c0392b)';
+          msg.textContent = 'No connection';
+        });
+    }
+
+    btnIntac.addEventListener('click', function () {
+      lockArmed = false;
+      btnLock.textContent = 'Lock the PC';
+      send('closeintac', 'Close INTAC');
+    });
+
+    btnLock.addEventListener('click', function () {
+      if (!lockArmed) {
+        lockArmed = true;
+        btnLock.textContent = 'Yes - lock it';
+        msg.style.color = 'var(--danger, #c0392b)';
+        msg.textContent = 'This stops the 3pm rates and every balance report. ' +
+          'It cannot be undone from here - someone has to unlock the PC in the office.';
+        return;
+      }
+      lockArmed = false;
+      btnLock.textContent = 'Lock the PC';
+      send('lock', 'Lock');
+    });
+
+    function open() {
+      panel.classList.add('open');
+      overlay.classList.add('open');
+      lockArmed = false;
+      btnLock.textContent = 'Lock the PC';
+      msg.textContent = '';
+      poll();
+      if (timer) clearInterval(timer);
+      timer = setInterval(poll, 15000);
+    }
+    function close() {
+      panel.classList.remove('open');
+      overlay.classList.remove('open');
+      if (timer) { clearInterval(timer); timer = null; }
+    }
+
+    document.getElementById('pcToggle').addEventListener('click', open);
+    document.getElementById('pcClose').addEventListener('click', close);
+    overlay.addEventListener('click', close);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') close();
+    });
+
+    /* A quiet check on load so the menu dot can warn without opening it. */
+    poll();
+    setInterval(poll, 120000);
   })();
 
   /* ---------- outstanding balance, sent to Telegram ----------
