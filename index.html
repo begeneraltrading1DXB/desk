@@ -463,6 +463,28 @@
     height: 1px;
   }
 
+  .bal-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .bal-chip {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 8px 12px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .bal-chip.on {
+    background: var(--accent, #c9a227);
+    border-color: var(--accent, #c9a227);
+    color: #1a1a1a;
+  }
+
+  .bal-chip.recent { border-color: var(--accent, #c9a227); }
+
   .bal-select {
     width: 100%;
     background: var(--panel-2);
@@ -1131,8 +1153,8 @@
         It does not appear here. Takes about a minute.
       </p>
       <div class="secret-field">
-        <label class="secret-label">Currency</label>
-        <select id="balCurrency" class="bal-select"></select>
+        <label class="secret-label">Currencies &mdash; tap to choose</label>
+        <div class="bal-chips" id="balChips"></div>
       </div>
       <button class="sidebar-refresh" id="balRequest">Send to Telegram</button>
       <div class="empty-note" id="balStatus" style="text-align:left"></div>
@@ -2511,78 +2533,164 @@
   /* ---------- outstanding balance, sent to Telegram ----------
      The picture never comes back to the phone. It is captured on the PC and
      delivered privately on Telegram, so the most confidential screen in the
-     business never passes through a browser or a public endpoint. All that
-     crosses the wire here is a currency code and a status word. */
+     business never passes through a browser or a public endpoint. Only
+     currency codes and a status word cross this wire.
+
+     Several currencies can go in one request. One at a time meant a whole
+     session opened and closed for each - about 33 seconds of logging in every
+     time, and a separate wait for whoever is holding the phone. */
   (function () {
-    const CURRENCIES = ["TMN","DHS","USD","USDB","USDI","USDT","EUR","GBP",
+    var CURRENCIES = ["TMN","DHS","USD","USDB","USDI","USDT","EUR","GBP",
       "AUD","AUDW","CAD","CADT","CADW","RMB","RMBA","RMBM","RMBS","RMBT",
       "RMATT","OMR","XAU","XAG","AFG","CHF","INR","PKR","TL","SGD","MYR",
       "KRW","JYP","RUB","SEK","ETH","USDLA"];
+    var RECENT_MIN = 10;
 
-    const panel   = document.getElementById('balSidebar');
-    const overlay = document.getElementById('balOverlay');
-    const sel     = document.getElementById('balCurrency');
-    const btn     = document.getElementById('balRequest');
-    const status  = document.getElementById('balStatus');
-    let timer = null;
+    var panel   = document.getElementById('balSidebar');
+    var overlay = document.getElementById('balOverlay');
+    var chips   = document.getElementById('balChips');
+    var btn     = document.getElementById('balRequest');
+    var status  = document.getElementById('balStatus');
 
-    CURRENCIES.forEach(c => {
-      const o = document.createElement('option');
-      o.value = c; o.textContent = c;
-      sel.appendChild(o);
+    var chosen = {};
+    var lastSent = {};
+    var timer = null;
+    var armed = false;
+
+    function picked() {
+      return CURRENCIES.filter(function (c) { return chosen[c]; });
+    }
+
+    function minsAgo(c) {
+      var t = lastSent[c];
+      if (!t) return null;
+      var m = (Date.now() - new Date(t).getTime()) / 60000;
+      return (m >= 0 && m < RECENT_MIN) ? Math.max(1, Math.round(m)) : null;
+    }
+
+    CURRENCIES.forEach(function (c) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'bal-chip';
+      b.textContent = c;
+      b.addEventListener('click', function () {
+        chosen[c] = !chosen[c];
+        armed = false;
+        remember();
+        paint();
+      });
+      chips.appendChild(b);
     });
-    try { sel.value = localStorage.getItem('desk-bal-currency') || 'TMN'; }
-    catch (e) { sel.value = 'TMN'; }
 
-    const say = (msg, cls) => {
+    function remember() {
+      try { localStorage.setItem('desk-bal-currency', picked().join(',')); }
+      catch (e) {}
+    }
+
+    function paint() {
+      var kids = chips.children;
+      for (var i = 0; i < kids.length; i++) {
+        var c = kids[i].textContent;
+        kids[i].classList.toggle('on', !!chosen[c]);
+        kids[i].classList.toggle('recent', minsAgo(c) !== null);
+      }
+      var n = picked().length;
+      btn.disabled = (n === 0);
+      btn.textContent = armed ? 'Send anyway'
+                      : (n <= 1 ? 'Send to Telegram' : 'Send ' + n + ' to Telegram');
+    }
+
+    function say(msg, kind) {
       status.textContent = msg;
-      status.style.color = cls === 'bad' ? 'var(--danger, #c0392b)'
-                        : cls === 'ok'  ? 'var(--ok, #2e7d32)' : '';
-    };
+      status.style.color = kind === 'bad' ? 'var(--danger, #c0392b)'
+                        : kind === 'ok'  ? 'var(--ok, #2e7d32)' : '';
+    }
 
-    function open()  { panel.classList.add('open');    overlay.classList.add('open'); poll(); }
+    function open()  { panel.classList.add('open'); overlay.classList.add('open'); poll(); }
     function close() {
-      panel.classList.remove('open'); overlay.classList.remove('open');
+      panel.classList.remove('open');
+      overlay.classList.remove('open');
       if (timer) { clearInterval(timer); timer = null; }
     }
-
-    async function poll() {
-      try {
-        const r = await fetch(withKey(ENDPOINT + '?action=getBalanceRequest'));
-        const j = await r.json();
-        if (j.unauthorised) { say('This phone is not linked yet.', 'bad'); return; }
-        if (j.state === 'REQUESTED') say('Waiting for the office PC…');
-        else if (j.state === 'RUNNING') say('Opening INTAC and capturing ' + (j.currency || '') + '…');
-        else if (j.state === 'DONE')   { say('Sent on Telegram ✓', 'ok'); stopPolling(); }
-        else if (j.state === 'FAILED') { say('Failed: ' + (j.note || 'see the PC log'), 'bad'); stopPolling(); }
-        else say('');
-      } catch (e) { /* offline: leave the last message up */ }
+    function stopPolling() {
+      if (timer) { clearInterval(timer); timer = null; }
+      paint();
     }
-    function stopPolling() { if (timer) { clearInterval(timer); timer = null; } btn.disabled = false; }
 
-    btn.addEventListener('click', async () => {
-      const cur = sel.value;
-      try { localStorage.setItem('desk-bal-currency', cur); } catch (e) {}
-      btn.disabled = true;
-      say('Asking the office PC…');
-      try {
-        const r = await fetch(withKey(ENDPOINT + '?action=requestBalance&currency=' +
-                                      encodeURIComponent(cur)));
-        const j = await r.json();
-        if (!j.ok) { say(j.message || 'Could not request it', 'bad'); btn.disabled = false; return; }
-        say(j.message || 'Requested');
-        if (timer) clearInterval(timer);
-        timer = setInterval(poll, 5000);
-      } catch (e) {
-        say('No connection', 'bad');
-        btn.disabled = false;
+    function poll() {
+      return fetch(withKey(ENDPOINT + '?action=getBalanceRequest'))
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j.unauthorised) { say('This phone is not linked yet.', 'bad'); return; }
+          lastSent = j.lastSent || lastSent;
+          var done = j.done || [];
+          var left = (j.currencies || []).filter(function (c) {
+            return done.indexOf(c) === -1;
+          });
+          if (j.state === 'REQUESTED') {
+            say('Waiting for the office PC...');
+          } else if (j.state === 'RUNNING') {
+            say('Working... ' + (j.note || '') +
+                (left.length ? ' (' + left.join(', ') + ' to go)' : ''));
+          } else if (j.state === 'DONE') {
+            say('Sent on Telegram - ' + (j.note || ''), 'ok'); stopPolling();
+          } else if (j.state === 'FAILED') {
+            say('Failed: ' + (j.note || 'see the PC log'), 'bad'); stopPolling();
+          }
+          paint();
+        })
+        .catch(function () { /* offline: leave the last message showing */ });
+    }
+
+    btn.addEventListener('click', function () {
+      var want = picked();
+      if (!want.length) return;
+
+      /* If one of these went out minutes ago, say so and make them tap again.
+         This is what actually happened: a report was asked for a second time a
+         minute AFTER the first had already arrived, because there was no sign
+         it had. A double-tap blocker would not have helped at all. */
+      if (!armed) {
+        var recent = [];
+        want.forEach(function (c) {
+          var m = minsAgo(c);
+          if (m !== null) recent.push(c + ' was sent ' + m + ' min ago');
+        });
+        if (recent.length) {
+          armed = true;
+          paint();
+          say(recent.join(', ') + ' - tap again to send it anyway.', 'bad');
+          return;
+        }
       }
+
+      armed = false;
+      btn.disabled = true;
+      say('Asking the office PC...');
+      fetch(withKey(ENDPOINT + '?action=requestBalance&currency=' +
+                    encodeURIComponent(want.join(','))))
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j.ok) { say(j.message || 'Could not request it', 'bad'); paint(); return; }
+          say(j.message || 'Requested');
+          if (timer) clearInterval(timer);
+          timer = setInterval(poll, 5000);
+        })
+        .catch(function () { say('No connection', 'bad'); paint(); });
     });
 
     document.getElementById('balToggle').addEventListener('click', open);
     document.getElementById('balClose').addEventListener('click', close);
     overlay.addEventListener('click', close);
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') close();
+    });
+
+    try {
+      (localStorage.getItem('desk-bal-currency') || 'TMN').split(',')
+        .forEach(function (c) { if (c) chosen[c] = true; });
+    } catch (e) { chosen['TMN'] = true; }
+    paint();
   })();
 
   /* ---------- today's buying, under Set rate ----------
