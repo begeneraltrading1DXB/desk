@@ -463,6 +463,21 @@
     height: 1px;
   }
 
+  .bal-select {
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 12px 10px;
+    font: inherit;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  #balRequest { margin-top: 4px; }
+  #balStatus  { margin-top: 10px; min-height: 18px; }
+
   .secret-toman {
     font-family: var(--mono);
     font-size: 22px;
@@ -1063,6 +1078,11 @@
             <svg viewBox="0 0 24 24"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
             <span class="menu-label">Sell sheet</span>
           </button>
+          <div class="menu-sep"></div>
+          <button class="icon-btn menu-item" id="balToggle" role="menuitem">
+            <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h11"/></svg>
+            <span class="menu-label">Outstanding balance</span>
+          </button>
         </div>
       </div>
       <button class="theme-toggle" id="themeToggle" aria-label="Toggle light or dark mode">
@@ -1092,6 +1112,30 @@
     <button class="sidebar-refresh" id="tradeRefresh">Refresh</button>
     <div class="sidebar-body" id="tradeBody">
       <div class="empty-note">Loading…</div>
+    </div>
+  </aside>
+
+  <div class="sidebar-overlay" id="balOverlay"></div>
+  <aside class="accounts-sidebar" id="balSidebar">
+    <div class="sidebar-head">
+      <span class="title">Outstanding balance</span>
+      <button class="sidebar-close" id="balClose" aria-label="Close">✕</button>
+    </div>
+    <div class="sidebar-body">
+      <!-- The report is NEVER shown here. It is captured on the office PC and
+           sent straight to Telegram, so a customer ledger never travels through
+           this page, this endpoint, or anyone's browser cache. -->
+      <p class="empty-note" style="text-align:left;line-height:1.5">
+        Pick a currency. The office PC opens INTAC, captures the whole report
+        including the totals, and sends it <strong>privately on Telegram</strong>.
+        It does not appear here. Takes about a minute.
+      </p>
+      <div class="secret-field">
+        <label class="secret-label">Currency</label>
+        <select id="balCurrency" class="bal-select"></select>
+      </div>
+      <button class="sidebar-refresh" id="balRequest">Send to Telegram</button>
+      <div class="empty-note" id="balStatus" style="text-align:left"></div>
     </div>
   </aside>
 
@@ -2462,6 +2506,83 @@
       if (currentSide === 'BUY' && window.refreshBuyContext) window.refreshBuyContext();
     });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeTrade(); });
+  })();
+
+  /* ---------- outstanding balance, sent to Telegram ----------
+     The picture never comes back to the phone. It is captured on the PC and
+     delivered privately on Telegram, so the most confidential screen in the
+     business never passes through a browser or a public endpoint. All that
+     crosses the wire here is a currency code and a status word. */
+  (function () {
+    const CURRENCIES = ["TMN","DHS","USD","USDB","USDI","USDT","EUR","GBP",
+      "AUD","AUDW","CAD","CADT","CADW","RMB","RMBA","RMBM","RMBS","RMBT",
+      "RMATT","OMR","XAU","XAG","AFG","CHF","INR","PKR","TL","SGD","MYR",
+      "KRW","JYP","RUB","SEK","ETH","USDLA"];
+
+    const panel   = document.getElementById('balSidebar');
+    const overlay = document.getElementById('balOverlay');
+    const sel     = document.getElementById('balCurrency');
+    const btn     = document.getElementById('balRequest');
+    const status  = document.getElementById('balStatus');
+    let timer = null;
+
+    CURRENCIES.forEach(c => {
+      const o = document.createElement('option');
+      o.value = c; o.textContent = c;
+      sel.appendChild(o);
+    });
+    try { sel.value = localStorage.getItem('desk-bal-currency') || 'TMN'; }
+    catch (e) { sel.value = 'TMN'; }
+
+    const say = (msg, cls) => {
+      status.textContent = msg;
+      status.style.color = cls === 'bad' ? 'var(--danger, #c0392b)'
+                        : cls === 'ok'  ? 'var(--ok, #2e7d32)' : '';
+    };
+
+    function open()  { panel.classList.add('open');    overlay.classList.add('open'); poll(); }
+    function close() {
+      panel.classList.remove('open'); overlay.classList.remove('open');
+      if (timer) { clearInterval(timer); timer = null; }
+    }
+
+    async function poll() {
+      try {
+        const r = await fetch(withKey(ENDPOINT + '?action=getBalanceRequest'));
+        const j = await r.json();
+        if (j.unauthorised) { say('This phone is not linked yet.', 'bad'); return; }
+        if (j.state === 'REQUESTED') say('Waiting for the office PC…');
+        else if (j.state === 'RUNNING') say('Opening INTAC and capturing ' + (j.currency || '') + '…');
+        else if (j.state === 'DONE')   { say('Sent on Telegram ✓', 'ok'); stopPolling(); }
+        else if (j.state === 'FAILED') { say('Failed: ' + (j.note || 'see the PC log'), 'bad'); stopPolling(); }
+        else say('');
+      } catch (e) { /* offline: leave the last message up */ }
+    }
+    function stopPolling() { if (timer) { clearInterval(timer); timer = null; } btn.disabled = false; }
+
+    btn.addEventListener('click', async () => {
+      const cur = sel.value;
+      try { localStorage.setItem('desk-bal-currency', cur); } catch (e) {}
+      btn.disabled = true;
+      say('Asking the office PC…');
+      try {
+        const r = await fetch(withKey(ENDPOINT + '?action=requestBalance&currency=' +
+                                      encodeURIComponent(cur)));
+        const j = await r.json();
+        if (!j.ok) { say(j.message || 'Could not request it', 'bad'); btn.disabled = false; return; }
+        say(j.message || 'Requested');
+        if (timer) clearInterval(timer);
+        timer = setInterval(poll, 5000);
+      } catch (e) {
+        say('No connection', 'bad');
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('balToggle').addEventListener('click', open);
+    document.getElementById('balClose').addEventListener('click', close);
+    overlay.addEventListener('click', close);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
   })();
 
   /* ---------- today's buying, under Set rate ----------
