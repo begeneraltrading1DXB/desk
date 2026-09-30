@@ -2595,12 +2595,26 @@
       return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
     }
 
+    /* The PC reports how often it intends to check in, as "idle;gap=300".
+       Judging it dead on a fixed 180s was a guaranteed false alarm out of
+       working hours, where it deliberately beats every 300s. An alarm that
+       cries wolf is one you learn to ignore - and then you ignore the real
+       one. Threshold now follows the cadence the PC actually reports. */
+    function parseNote(note) {
+      var raw = String(note || '');
+      var m = raw.match(/;gap=(\d+)/);
+      return { state: raw.split(';')[0], gap: m ? parseInt(m[1], 10) : 60 };
+    }
+
     function show(j) {
       var secs = ago(j.beat);
+      var info = parseNote(j.note);
+      // three missed check-ins, and never less than 3 minutes
+      var deadAfter = Math.max(180, info.gap * 3 + 30);
       /* Locked is its own state, and it must not read as healthy. The watcher
          keeps heartbeating quite happily from behind a lock screen, so without
          this the panel would say "Awake" about a PC where nothing can run. */
-      if (j.note === 'locked' && secs !== null && secs < 180) {
+      if (info.state === 'locked' && secs !== null && secs < deadAfter) {
         stateEl.textContent = 'LOCKED - nothing can run';
         stateEl.className = 'pc-state bad';
         badge.style.display = 'block';
@@ -2613,7 +2627,7 @@
         stateEl.textContent = 'Never heard from it';
         stateEl.className = 'pc-state bad';
         badge.style.display = 'block';
-      } else if (secs < 180) {
+      } else if (secs < deadAfter) {
         stateEl.textContent = 'Awake - last seen ' + secs + 's ago';
         stateEl.className = 'pc-state ok';
         badge.style.display = 'none';
@@ -2624,9 +2638,9 @@
         stateEl.className = 'pc-state bad';
         badge.style.display = 'block';
       }
-      detail.textContent = j.note === 'idle' ? 'Nothing open. Waiting for work.'
-                         : j.note === 'INTAC session open' ? 'An INTAC session is open right now.'
-                         : j.note === 'locked' ? 'It reports itself locked.'
+      detail.textContent = info.state === 'idle' ? 'Nothing open. Waiting for work.'
+                         : info.state === 'INTAC session open' ? 'An INTAC session is open right now.'
+                         : info.state === 'locked' ? 'It reports itself locked.'
                          : '';
       if (j.pending) msg.textContent = 'Waiting for the PC to pick up: ' + j.pending;
     }
