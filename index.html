@@ -2600,15 +2600,20 @@
        working hours, where it deliberately beats every 300s. An alarm that
        cries wolf is one you learn to ignore - and then you ignore the real
        one. Threshold now follows the cadence the PC actually reports. */
-    function parseNote(note) {
+    function parseNote(note, gapField) {
       var raw = String(note || '');
+      /* gap is a proper field on the response. The copy inside the note is a
+         fallback for an older script, so a partial deploy cannot bring the
+         false alarms back. */
       var m = raw.match(/;gap=(\d+)/);
-      return { state: raw.split(';')[0], gap: m ? parseInt(m[1], 10) : 60 };
+      var gap = parseInt(gapField, 10);
+      if (!(gap > 0)) gap = m ? parseInt(m[1], 10) : 60;
+      return { state: raw.split(';')[0], gap: gap };
     }
 
     function show(j) {
       var secs = ago(j.beat);
-      var info = parseNote(j.note);
+      var info = parseNote(j.note, j.gap);
       // three missed check-ins, and never less than 3 minutes
       var deadAfter = Math.max(180, info.gap * 3 + 30);
       /* Locked is its own state, and it must not read as healthy. The watcher
