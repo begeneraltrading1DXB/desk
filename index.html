@@ -87,29 +87,30 @@
      the moon button - so the beige would make them vanish. A warm charcoal
      sits behind them instead and dissolves into the page. The stops trace an
      ease-out curve: a straight two-colour fade has a visible edge and reads
-     as a smudge. The fade ends exactly where the top bar's content begins,
-     so it never lies over the logo or buttons. Nothing scrolls under it -
-     <main> is the scroller and the top bar stays put. Height 0 anywhere
-     without a notch, so desktop is unchanged. */
+     as a smudge. Solid charcoal covers the clock and icons (they sit in the
+     upper ~70% of the status bar); the fade starts below them and ends in
+     the top bar's 14px padding, exactly where the logo and buttons begin, so
+     it never lies over them. The layout is NOT moved to make room: an
+     earlier version pushed the top bar down 16px in light mode only, and
+     everything visibly jumped when the moon button was pressed. Nothing
+     scrolls under it - <main> is the scroller and the top bar stays put.
+     Height 0 anywhere without a notch, so desktop is unchanged. */
   [data-theme="light"] body::before {
     content: "";
     position: fixed;
     top: 0; left: 0; right: 0;
     z-index: 30;
     pointer-events: none;
-    height: calc(var(--sat) + min(var(--sat), 30px));
+    height: calc(var(--sat) + min(var(--sat), 14px));
     background: linear-gradient(to bottom,
       rgba(28,27,24,1)   0,
-      rgba(28,27,24,1)   calc(var(--sat) * .55),
-      rgba(28,27,24,.86) calc(var(--sat) * .80),
-      rgba(28,27,24,.62) var(--sat),
-      rgba(28,27,24,.36) calc(var(--sat) + 8px),
-      rgba(28,27,24,.16) calc(var(--sat) + 16px),
-      rgba(28,27,24,.05) calc(var(--sat) + 23px),
+      rgba(28,27,24,1)   calc(var(--sat) * .70),
+      rgba(28,27,24,.86) calc(var(--sat) * .745 + 2px),
+      rgba(28,27,24,.62) calc(var(--sat) * .796 + 4.5px),
+      rgba(28,27,24,.36) calc(var(--sat) * .85  + 7px),
+      rgba(28,27,24,.16) calc(var(--sat) * .904 + 9.5px),
+      rgba(28,27,24,.05) calc(var(--sat) * .952 + 12px),
       rgba(28,27,24,0)   100%);
-  }
-  [data-theme="light"] .topbar {
-    padding-top: calc(14px + min(var(--sat), 16px));
   }
 
   .topbar {
