@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<!-- viewport-fit=cover lets the page draw behind the iPhone's status bar.
+     Without it iOS kept that strip for itself and painted it solid black, so
+     the app looked like it started under a black bar. It is also what makes
+     env(safe-area-inset-*) report real sizes - before, they were all 0. -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <!-- iOS names a home-screen icon from this tag, falling back to <title> and
@@ -63,11 +67,49 @@
     overflow-x: hidden;
   }
 
+  /* Height of the iPhone's status bar (clock, signal, battery); 0 on anything
+     without one. Kept in one place so a preview can stand in a real size. */
+  :root { --sat: env(safe-area-inset-top); }
+
   body {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) 0;
+    padding: var(--sat) env(safe-area-inset-right)
+             env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  /* Dark mode needs nothing more: the body's padding leaves its own
+     background behind the clock, so the app runs seamlessly to the top.
+
+     Light mode does. The iPhone draws its clock and battery in WHITE for both
+     themes - the status-bar style is read once at launch and cannot follow
+     the moon button - so the beige would make them vanish. A warm charcoal
+     sits behind them instead and dissolves into the page. The stops trace an
+     ease-out curve: a straight two-colour fade has a visible edge and reads
+     as a smudge. The fade ends exactly where the top bar's content begins,
+     so it never lies over the logo or buttons. Nothing scrolls under it -
+     <main> is the scroller and the top bar stays put. Height 0 anywhere
+     without a notch, so desktop is unchanged. */
+  [data-theme="light"] body::before {
+    content: "";
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 30;
+    pointer-events: none;
+    height: calc(var(--sat) + min(var(--sat), 30px));
+    background: linear-gradient(to bottom,
+      rgba(28,27,24,1)   0,
+      rgba(28,27,24,1)   calc(var(--sat) * .55),
+      rgba(28,27,24,.86) calc(var(--sat) * .80),
+      rgba(28,27,24,.62) var(--sat),
+      rgba(28,27,24,.36) calc(var(--sat) + 8px),
+      rgba(28,27,24,.16) calc(var(--sat) + 16px),
+      rgba(28,27,24,.05) calc(var(--sat) + 23px),
+      rgba(28,27,24,0)   100%);
+  }
+  [data-theme="light"] .topbar {
+    padding-top: calc(14px + min(var(--sat), 16px));
   }
 
   .topbar {
@@ -117,12 +159,6 @@
     text-transform: uppercase;
     color: var(--accent);
     font-weight: 600;
-  }
-
-  .topbar .clock {
-    font-family: var(--mono);
-    font-size: 13px;
-    color: var(--text-dim);
   }
 
   .topbar .right {
@@ -213,16 +249,22 @@
     width: min(360px, 88vw);
     background: var(--panel);
     border-left: 1px solid var(--line);
-    box-shadow: -8px 0 24px rgba(0,0,0,0.3);
+    /* No shadow while closed. A closed panel is parked just off the right
+       edge, and its shadow used to spill ~30px back onto the screen. There
+       are four of these panels, so four shadows stacked into a dark band down
+       the right side that looked like a broken screen - plain in light mode,
+       faint in dark. */
+    box-shadow: none;
     transform: translateX(100%);
-    transition: transform 0.3s ease;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
     z-index: 41;
     display: flex;
     flex-direction: column;
-    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) 0;
+    padding: var(--sat) 0 env(safe-area-inset-bottom) 0;
   }
   .accounts-sidebar.open {
     transform: translateX(0);
+    box-shadow: -8px 0 24px rgba(0,0,0,0.3);
   }
 
   .sidebar-head {
@@ -1090,7 +1132,6 @@
     </div>
     <div class="company-name" id="wordmarkTapZone">Gohari</div>
     <div class="right">
-      <span class="clock" id="clock">--:--</span>
       <div class="menu-wrap">
         <button class="icon-btn" id="menuToggle" aria-label="Open menu" aria-haspopup="true" aria-expanded="false">
           <span class="dot-badge" id="menuBadge"></span>
@@ -1485,16 +1526,6 @@
     localStorage.setItem('desk-theme', currentTheme);
     applyTheme(currentTheme);
   });
-
-  // Clock
-  function updateClock() {
-    const now = new Date();
-    const h = String(now.getHours()).padStart(2, '0');
-    const m = String(now.getMinutes()).padStart(2, '0');
-    document.getElementById('clock').textContent = h + ':' + m;
-  }
-  updateClock();
-  setInterval(updateClock, 1000 * 15);
 
   // Live markets — gold, silver, EUR/USD, BTC. Entirely separate from the Google Sheet.
   const marketsStrip = document.getElementById('marketsStrip');
